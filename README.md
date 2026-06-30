@@ -1,39 +1,96 @@
-# Interactive-Socioeconomic-Data-Visualization
-An interactive HTML data visualization project using R (ggiraph, tidyverse) to analyze VAST Challenge datasets, exploring financial trade-offs between education costs and civic vitality.
-# Interactive Socioeconomic Data Visualization: The Urban Education Squeeze 🏙️📊
+# Interactive Socioeconomic Data Visualization
 
-This repository contains an advanced exploratory data analysis (EDA) and interactive visualization project examining socioeconomic inequality within a simulated urban environment[cite: 8]. 
+This project analyzes socioeconomic inequality in a simulated urban environment using interactive data visualization in R. The goal is to examine how household income shapes education spending, recreation access, and financial pressure among families.
 
-Using relational datasets from the **VAST Challenge 2022** (simulating ~1,000 residents in Engagement, Ohio)[cite: 8], this project quantifies the intense financial trade-offs low-income families face between funding education and maintaining civic vitality (recreation)[cite: 8].
+The project uses the VAST Challenge 2022 dataset, which simulates residents in the fictional city of Engagement, Ohio. The analysis focuses on the financial trade-offs that low-income families face between investing in education and maintaining access to recreation and civic life.
 
-## 🛠 Tech Stack & Methodologies
-* **Language:** R
-* **Data Wrangling:** `tidyverse` (`dplyr`, `tidyr` for `pivot_wider`/`pivot_longer`, `left_join`)
-* **Interactive Visualization:** `ggplot2`, `ggiraph` (for SVG-based interactive tooltips and CSS hover effects)[cite: 9]
-* **Reporting:** R Markdown (rendered to Interactive HTML)[cite: 9]
+## Project Overview
 
-## ⚙️ Data Engineering Pipeline
-A significant portion of this project involved reshaping fragmented transactional data into analyzable household metrics:
-1. **Relational Merging:** Joined the `FinancialJournal.csv` (transaction logs) with `Participants.csv` (demographic profiles) using `participantId` as the primary key[cite: 9].
-2. **Data Reshaping:** Aggregated absolute financial transactions and utilized `pivot_wider` to structure spending categories (Basic Needs, Education, Recreation) across distinct household types[cite: 9].
-3. **Metric Engineering:** Calculated custom socioeconomic indicators, such as the "Recreation Spending Gap," to baseline individual family leisure budgets against the city-wide average[cite: 9].
+This project investigates the relationship between income level, parental education, education spending, and recreation access. Households are grouped into low-, middle-, and high-income categories to compare how different families allocate their budgets across basic needs, education, and recreation.
 
-## 📈 Interactive Visualizations
-Rather than static images, the analysis was designed for web-based interactivity using the `ggiraph` package[cite: 9]:
-* **Diverging Stacked Bars:** Visualizes the disproportionate budget share consumed by education for low-income families[cite: 8, 9].
-* **Violin-Box Plots:** Displays the absolute dollar distribution of education spending, highlighting the density of low-income families trapped below the city average[cite: 8, 9].
-* **Interactive Scatter Plots (with Linear Trendlines):** Maps the stark negative correlation between education cost burden (% of wage) and recreation deficit for families without university degrees[cite: 8, 9]. *Hovering over data points reveals specific household metrics.*
+The final output is an interactive HTML report built with R Markdown. Interactive tooltips allow readers to explore household-level and group-level spending patterns directly within the visualizations.
 
-## 💡 Key Findings
-1. **The Education Squeeze:** Low-income families with children allocate a severely disproportionate share of their limited budget to education, forcing extreme sacrifices in basic needs and recreation[cite: 8].
-2. **The Recreation Gap:** Wealth insulates middle- and high-income families, allowing them to enjoy city recreation regardless of parental education levels. Conversely, low-income parents without degrees face massive recreation deficits to afford schooling[cite: 8].
-3. **Civic Vitality:** The data proves that access to urban leisure is not equal; for those at the bottom of the income bracket, fighting for a child's future systematically strips away daily joy[cite: 8].
+## Tools and Methods
 
-## 📂 Repository Structure
-* `data/` - Contains the `Participants.csv` and `FinancialJournal.csv` (VAST Challenge 2022 datasets)[cite: 9].
-* `scripts/interactive_analysis_report.Rmd` - The core R Markdown script containing the data cleaning pipeline and `ggiraph` visualization code.
-* `report/urban_inequality_report.pdf` - The static version of the analytical report. *(Note: Knit the `.Rmd` locally to HTML to experience the full CSS hover interactivity).*
+* R
+* R Markdown
+* tidyverse
+* dplyr
+* tidyr
+* ggplot2
+* ggiraph
+* Data cleaning and aggregation
+* Relational data merging
+* Interactive data visualization
+* Socioeconomic analysis
 
----
-**⚠️ Academic Integrity Disclaimer:** 
-*This project was developed for academic purposes at the University of Toronto. The codebase and analytical reports are shared here strictly for professional portfolio demonstration. Current or future students are prohibited from copying or adapting this work for their own assignments.*
+## Data Processing Pipeline
+
+### 1. Data Merging
+
+The analysis combines financial transaction data with participant demographic data from the VAST Challenge 2022 dataset. This allows household spending patterns to be analyzed alongside income group, household structure, and parental education level.
+
+### 2. Data Reshaping
+
+Financial transactions are reshaped and aggregated to calculate household-level spending across categories such as basic needs, education, and recreation. The project uses `pivot_wider` and `pivot_longer` to restructure the data for visualization and comparison.
+
+### 3. Metric Construction
+
+Several custom metrics are created to support the analysis, including:
+
+* household budget proportions
+* education cost as a percentage of wage
+* recreation spending gap relative to the city average
+* income-level spending comparisons
+
+These metrics help show whether families are spending more in absolute terms or whether certain expenses simply take up a larger share of a smaller budget.
+
+## Interactive Visualizations
+
+The project uses `ggplot2` and `ggiraph` to create interactive visualizations with hover tooltips.
+
+### Budget Composition Chart
+
+A stacked bar chart compares how families across income groups allocate their budgets to basic needs, education, and recreation. This visualization highlights how education takes up a much larger share of the budget for low-income families with children.
+
+### Education Spending Distribution
+
+A violin-box plot shows the distribution of actual education spending across income groups. This helps distinguish between spending a high proportion of income and spending a high dollar amount.
+
+### Recreation Spending Gap
+
+A diverging bar chart compares recreation spending across income and parental education groups relative to the city average. This visualization shows which groups have more or less money available for recreation.
+
+### Education-Recreation Trade-off
+
+An interactive scatter plot examines the relationship between education cost burden and recreation spending gap. Point size represents parental education level, and color represents income group. Trendlines are used to compare patterns across income levels.
+
+## Key Findings
+
+* Low-income families with children spend a much larger share of their limited budget on education.
+* Although low-income families may spend less on education in absolute dollars, education costs create a much heavier burden relative to their income.
+* Middle- and high-income families are more able to spend on both education and recreation without making severe trade-offs.
+* Low-income families with lower parental education levels face the largest recreation spending deficits.
+* The relationship between education spending and recreation access suggests that financial pressure can limit families' ability to participate in civic and leisure activities.
+
+## Repository Structure
+
+```text
+Interactive-Socioeconomic-Data-Visualization/
+├── README.md
+├── interactive_socioeconomic_visualization.Rmd
+├── urban_inequality_report.html
+└── urban_inequality_report.pdf
+```
+
+* `interactive_socioeconomic_visualization.Rmd`: R Markdown source file containing the data cleaning, transformation, analysis, and interactive visualization code.
+* `urban_inequality_report.html`: Interactive HTML report with hover tooltips and dynamic visualizations.
+* `urban_inequality_report.pdf`: Static version of the report for easier viewing and sharing.
+
+## Notes on Data
+
+The dataset used in this project comes from the VAST Challenge 2022 simulated urban environment. If the full dataset cannot be redistributed, this repository provides the analysis code, report, and documentation rather than the raw data files.
+
+## Academic Integrity Note
+
+This project was completed as part of a university coursework assignment and is shared for personal portfolio purposes only. Please do not copy, submit, or reuse this work as your own academic assignment.
