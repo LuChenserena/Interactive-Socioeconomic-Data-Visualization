@@ -1,0 +1,428 @@
+---
+title: "The Unequal Cost of Education: How Income Shapes Financial Pressure on Urban Families"
+author: "Lu Chen, Jinhong Gao"
+output: html_document
+---
+
+```{css, echo=FALSE}
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  line-height: 1.2;
+}
+.title {
+  font-size: 16pt !important;
+  font-weight: bold;
+}
+a {
+  color: inherit !important;
+  text-decoration: none !important;
+  cursor: text;
+}
+```
+
+```{r setup, include=FALSE,echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+required_packages <- c(
+  "shiny", "bslib", "ggiraph", 
+  "ggrepel", "ggtext", "viridis", 
+  "patchwork", "tidyverse"
+)
+for (p in required_packages) {
+  if (!require(p, character.only = TRUE)) {
+    install.packages(p, character.only = TRUE)
+    require(p)
+  }
+}
+```
+
+#### **Introduction**
+
+Despite living in the same city, different groups experience urban life in different ways. They face unequal access to resources, different living conditions, and different levels of financial pressure. These differences reflect deeper forms of inequality in city life. To better understand these huge gaps, this project uses the VAST Challenge 2022 dataset to study residents in the fictional city of Engagement, Ohio. The dataset simulates an urban environment and tracks the activities, status, and behavior of about 1,000 participants across the city (VAST Challenge, 2022).
+
+To align with contemporary socioeconomic reporting standards (Statistics Canada, 2025), households in this dataset are divided into three equal groups. This classification separates the families into low-income (the bottom third), middle-income (the middle third), and high-income (the top third) groups. Using this framework, this project investigates how income differences affect the balance between paying for education and enjoying recreation, which serves as a core component of civic vitality.
+
+```{r,echo=FALSE}
+### LOAD THE RAW DATA
+financial <- read_csv("FinancialJournal.csv")
+participants <- read_csv("Participants.csv")
+```
+
+```{r,echo=FALSE}
+### CLEAN UP FINANCIAL DATA
+financial_clean <- financial %>%
+  select(participantId, category, amount) %>%
+  filter(category %in% c("Education", "Food", "Recreation",
+                         "Shelter", "Wage"))
+
+financial_final <- financial_clean %>%
+  mutate(amount = abs(amount)) %>%  
+  group_by(participantId, category) %>%
+  summarise(category_amount = sum(amount, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(
+    names_from = category,
+    values_from = category_amount,
+    values_fill = 0
+  )
+
+### CLEAN UP PARTICIPANT DATA
+participant_final <- participants %>%
+  select(participantId, householdSize, haveKids, age, educationLevel,
+         joviality) %>%
+  mutate(family_type = case_when(haveKids == TRUE ~ "With children",
+                                 haveKids == FALSE ~ "No children"))
+
+merge_clean <- financial_final %>%
+  left_join(participant_final, by = "participantId") %>%
+  mutate(
+    income_group = case_when(
+      Wage <= quantile(Wage, 0.33, na.rm = TRUE) ~ "Low income",
+      Wage <= quantile(Wage, 0.66, na.rm = TRUE) ~ "Middle income",
+      Wage > quantile(Wage, 0.66, na.rm = TRUE) ~ "High income"
+    )
+  )
+```
+
+```{r,echo=FALSE}
+#PLOT 1
+plot_1_clean <- merge_clean %>%
+  mutate(`Basic Needs` = Food + Shelter) %>%
+  select(participantId, income_group, family_type, `Basic Needs`, Education,
+         Recreation) %>%
+  filter(!is.na(income_group), !is.na(family_type)) %>%
+  pivot_longer(cols = c(`Basic Needs`, Education, Recreation),
+               names_to = "Expense_Category",
+               values_to = "Amount") %>%
+  group_by(participantId) %>%
+  mutate(Total_Amount = sum(Amount, na.rm = TRUE),
+         Proportion = Amount / Total_Amount) %>%
+  ungroup() %>%
+  filter(Total_Amount > 0) %>%
+  group_by(income_group, family_type, Expense_Category) %>%
+  summarise(Mean_Proportion = mean(Proportion, na.rm = TRUE),
+            .groups = "drop") %>%
+  mutate(Expense_Category = factor(Expense_Category,
+                                   levels = c("Basic Needs", "Education",
+                                              "Recreation")),
+         income_group = factor(income_group,
+                               levels = c("Low income", "Middle income", 
+                                          "High income")))
+  
+
+p1 <- ggplot(
+  plot_1_clean,
+  aes(
+    x = income_group,
+    y = Mean_Proportion,
+    fill = Expense_Category,
+    tooltip = paste0(
+      "Family Type: ", family_type, "\n",
+      "Expense Category: ", Expense_Category, "\n",
+      "Average Proportion: ", scales::percent(Mean_Proportion, accuracy = 0.1)
+    ),
+    data_id = Expense_Category 
+  )
+) +
+  geom_col_interactive(color = "white", linewidth = 0.2) +
+  facet_wrap(~family_type, ncol = 1) +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "Basic Needs" = "#377eb8",
+      "Education" = "#1b9e77",
+      "Recreation" = "#984ea3"
+    )
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_minimal() +
+  labs(
+  title = "Figure 1: How Different Families Spend Their Paychecks",
+  subtitle = "The Education Squeeze: Poorer families spend a much larger part of their budget on education.",
+  x = "Household Income Level",
+  y = "Share of Household Budget (%)",
+  fill = "Expense Category"
+) +
+  theme(
+     plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, color = "grey40", face = "italic", hjust = 0.5),
+    strip.text = element_text(size = 14, face = "bold")
+  )
+girafe(
+  ggobj = p1,
+  width_svg = 10,
+  height_svg = 6,
+  options = list(opts_hover(css = "fill-opacity: 1; stroke: black; stroke-width: 1.5px;"),
+    opts_hover_inv(css = "opacity: 0.1;"),
+    opts_toolbar(saveaspng = FALSE)
+  )
+)
+# finding: low income level family spend most of their budget in the education
+```
+
+#### **Unequal Realities: Budget Priorities Across Income Levels**
+
+How do a family's income and whether they have children dictate the way they divide their paycheck to survive in the city? **Figure 1** addresses this by examining how the overall pattern of spending composition differs across income groups and family types. To reveal these forced budget choices, spending proportions were derived by calculating the percentage of each family's budget allocated to basic needs (food, shelter), education, and recreation. Readers can hover over any segment to view the exact percentage allocated to that expense category.
+
+A contrast in spending behaviors emerges when comparing the two family types. Households without children exhibit comparatively similar spending patterns across all income levels, whereas only households with children demonstrate significant spending on education. Compared to middle-class and upper-class families, low-income households with children devote a significantly higher portion of their budget to education. This pattern implies that low-income families must spend less on recreation and basic needs to allocate a larger portion of their constrained funds to education. Visually, as the green section (education) expands for the low-income group, the areas for recreation and basic needs are severely compressed. This highlights a harsh reality: low-income families with children are forced to sacrifice non-essential spending to fund education. A high share of spending on education reflects immense budget pressure; even when they spend less on education in actual terms, it consumes a much larger share of their household budget because their income base is smaller. However, this raises a follow-up question: Are these families spending more money on education, or does education simply take up a larger share because their overall income is lower?
+
+```{r, fig.width=10, fig.height=6, dpi=300,echo=FALSE,warning=FALSE}
+#PLOT2
+plot2_data <- merge_clean %>%
+  filter(family_type == "With children", !is.na(income_group)) %>%
+  filter(!is.na(Education)) %>%
+  mutate(
+    Education = abs(Education),
+    income_group = factor(income_group, levels = c("Low income", "Middle income", "High income"))
+  ) %>%
+  filter(Education > 0)
+overall_mean_edu <- mean(plot2_data$Education, na.rm = TRUE)
+p2 <- plot2_data %>%
+  ggplot(aes(x = income_group, y = Education)) + 
+    geom_violin(aes(fill = income_group), trim = TRUE, color = "grey60", size = 0.4, alpha = 0.8) +
+    geom_boxplot(width = 0.12, fill = "white", color = "grey20", 
+                 alpha = 0.9, outlier.shape = NA, size = 0.5, fatten = 5) +
+    geom_hline(aes(yintercept = overall_mean_edu, color = "City Average of Actual Education Spending"), 
+               linetype = "dashed", size = 0.8) +
+    scale_fill_brewer(palette = "Blues") +
+    scale_color_manual(name = "", 
+                       values = c("City Average of Actual Education Spending" = "#d73027"),
+                       labels = paste0("City Average of Actual Education Spending: $", round(overall_mean_edu, 0))) +
+    scale_y_continuous(labels = scales::dollar_format(), breaks = seq(0, 2000, by = 500)) +
+    theme_minimal() +
+    theme(
+      legend.position = "bottom", 
+      legend.justification = "center",
+      legend.margin = margin(t = 10),
+      legend.text = element_text(size = 11, face = "bold", color = "#d73027"), 
+      plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, color = "grey40", face = "italic", hjust = 0.5),
+         plot.caption.position = "plot",
+      axis.text.x = element_text(size = 11, face = "bold"),
+      axis.title.x = element_blank(), 
+      axis.title.y = element_text(size = 11, face = "bold"),
+      panel.grid.major.y = element_line(color = "grey90", linetype = "dashed"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank(),
+    ) +
+    guides(fill = "none") + 
+    labs(
+      title = "Figure 2: The Actual Education Spending for Families \nwith Children by Income Level",
+      subtitle = "A Heavy Burden: Education is a massive expense for low-income families",
+      y = "Actual Education Spending",
+      caption = "Note: Wider shape indicates that more families fall at that spending level.\nThe white box shows the middle 50% of families, and the thick line inside shows the typical spending level."
+    )
+
+p2
+```
+
+#### **Looking Beyond Proportions: The Actual Cost of Education for Families**
+
+To help readers visualize this, **Figure 2** uses shapes where the width shows how many people are in that group: the wider the shape, the more families are spending that exact amount. The red dashed line sets the scene: a typical family in the city spends about \$627 on education.
+
+When looking at the actual dollars spent by the low-income group, a harsh reality emerges. More than half of these households are trapped completely below the city’s average spending line. This large group at the very bottom tells a clear story: most poor families have almost no extra money, paying only the absolute minimum for school. In contrast, middle- and high-income families reach comfortably higher, easily paying education costs well above the average.
+
+When paired with Figure 1, the truth is clear: low-income families are not spending massive amounts of cash on education. Rather, their paychecks are so small that even the cheapest, most basic school fees take up a huge chunk of their budget. For wealthy families, education is just a bill they can easily pay. But for low-income families, even the cheapest education costs create a huge daily struggle.
+
+```{r,echo=FALSE,warning=FALSE}
+#PLOT3
+city_avg_recreation <- mean(merge_clean$Recreation[merge_clean$Wage > 0 & merge_clean$family_type == "With children"], na.rm = TRUE)
+
+plot3_clean <- merge_clean %>%
+  filter(Wage > 0, family_type == "With children") %>%
+  group_by(income_group, educationLevel) %>% 
+  summarize(avg_rec = mean(Recreation, na.rm = TRUE), .groups = "drop") %>%
+  mutate(
+    gap_from_avg = avg_rec - city_avg_recreation,
+    educationLevel = factor(educationLevel, levels = c("Low", "HighSchoolOrCollege", "Bachelors", "Graduate")),
+    income_group = factor(income_group, levels = c("Low income", "Middle income", "High income")),
+    tooltip_bar = paste0(
+      "Income Level: ", income_group,
+      "\nParental Education: ", educationLevel, 
+      "\nAbsolute Spending: $", format(round(avg_rec, 0), big.mark = ","),
+      "\nGap from Average: $", format(round(gap_from_avg, 0), big.mark = ",")
+    )
+  )
+
+p3 <- ggplot(
+  plot3_clean,
+  aes(x = educationLevel, y = gap_from_avg, fill = income_group)
+) +
+  geom_col_interactive(
+    aes(tooltip = tooltip_bar, data_id = educationLevel),
+    color = "black", 
+    width = 0.7 
+  ) +
+  geom_hline(yintercept = 0, color = "darkgrey", linewidth = 1, linetype = "dashed") +
+  geom_text(
+    aes(
+      label = ifelse(gap_from_avg > 0, 
+                     paste0("+$", format(round(gap_from_avg, 0), big.mark = ",")), 
+                     paste0("-$", format(abs(round(gap_from_avg, 0)), big.mark = ","))),
+      hjust = ifelse(gap_from_avg > 0, -0.2, 1.2)
+    ),
+    size = 3.5, 
+    fontface = "bold"
+  ) +
+  scale_fill_manual(
+  values = c("Low income" = "#deebf7",    
+             "Middle income" = "#9ecae1", 
+             "High income" = "#3182bd")   
+)  +
+  
+  coord_flip() + 
+  facet_wrap(~ income_group, ncol = 1) +
+  scale_y_continuous(
+    labels = scales::label_number(big.mark = ","),
+   limits = c(-4000, 4000)
+  ) +
+  
+  theme_minimal() +
+  labs(
+    title = "Figure 3: Can You Afford Recreation Without a University Degree?",
+    subtitle = "Without a degree, low-income families are forced to cut out fun. For the wealthy, fun is always in their budget.",
+    caption = "Note: The dashed line at $0 represents the city average 
+    recreation spending.",
+    x = "Parents' Education",
+    y = "Extra Money for Fun (Above/Below City Average)"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, color = "grey40", face = "italic", hjust = 0.5),
+    plot.caption.position = "plot",
+    panel.grid.major.y = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    strip.background = element_rect(fill = "lightgrey", color = NA),
+    legend.position = "none" 
+  )
+
+girafe(
+  ggobj = p3, 
+   width_svg = 10, height_svg = 6,
+  options = list(
+    opts_hover(css = "fill-opacity: 1; stroke: black; stroke-width: 2px; opacity: 1;"),
+    opts_hover_inv(css = "opacity: 0.05;")
+  )
+)
+#finding:low income family knows that without a degree, they only have a small budget for recreation. The reason why low income spend a lot in education. Poor families need a degree to afford recreation, while rich families always have a surplus.
+```
+
+#### **The Recreation Gap: Who Can Afford to Enjoy the City?**
+
+Is a college degree the only ticket to enjoying city life? **Figure 3** explores this by examining how a parent's education level impacts their family's recreation budget. To expose the true disparity, a new metric was calculated: the recreation spending gap. First, the city’s average recreation spending was established as a baseline. Then, each specific group's distance from this average was calculated. This makes it easy to see who has money to spare (the positive side) and who is struggling just to keep up (the negative side). Interactive tooltips and clear text labels are implemented so readers can instantly see the exact dollar amount of this gap for any given group.
+
+Looking at families by income reveals a massive difference in who can afford both a better future and a good life today. This perfectly explains why the low-income households from **Figure 1** drain their limited funds just to pay for education. For middle- and high-income families, wealth acts as a protective shield. They consistently spend well above the city average on recreation, almost entirely regardless of their parental education levels. Even when parents hold only a high school diploma or less, they never have to worry about affording leisure and easily participate in the city's civic life.
+
+Nevertheless, a low-income family's civic vitality is tied directly to parental educational background. Within this bottom tier, families fall far below the city average and struggle to afford any recreation unless the parents hold a bachelor’s or a graduate degree. This exposes a harsh socioeconomic reality: while wealthier residents do not need a degree to enjoy their city, low-income families must rely on higher education as their only ticket out of financial struggle. Ultimately, low-income families are forced to pour their money into education just to get a fair shot at a better life. **Figure 4** sums up this sad truth: the more these families sacrifice to pay for school, the more their daily leisure is squeezed completely out of their budget.
+
+```{r,echo=FALSE,warning=FALSE}
+#PLOT4
+city_avg_recreation <- mean(merge_clean$Recreation[merge_clean$family_type == "With children"], na.rm = TRUE)
+
+plot4_clean <- merge_clean %>%
+  filter(family_type == "With children", Wage > 0) %>%
+  mutate(
+    edu_burden = (Education / Wage) * 100,
+    recreation_gap = Recreation - city_avg_recreation,
+    income_group = factor(income_group, levels = c("Low income", "Middle income", "High income")),
+    educationLevel = factor(educationLevel, levels = c("Low", "HighSchoolOrCollege", "Bachelors", "Graduate")),
+    tooltip_text = paste0("Income: ", income_group, 
+                          "\nParental Edu: ", educationLevel, 
+                          "\nEdu Cost: ", round(edu_burden, 1), "% of Wage",
+                          "\nRec Gap: $", round(recreation_gap, 0))
+  )
+
+colour_map <- c("Low income" = "#d95f02", "Middle income" = "#7570b3", "High income" = "#1b9e77")
+
+
+p <- ggplot(plot4_clean, aes(x = recreation_gap, y = edu_burden, color = income_group)) +
+  geom_point_interactive(
+    aes(
+      tooltip = tooltip_text, 
+      data_id = income_group,
+      size = educationLevel 
+    ), 
+    alpha = 0.6
+  ) +
+  geom_smooth_interactive(
+    aes(
+      group = income_group, 
+      data_id = income_group 
+    ), 
+    method = "lm", 
+    se = FALSE, 
+    linewidth = 1.2 
+  ) +
+
+  scale_size_manual(
+    values = c("Low" = 1, "HighSchoolOrCollege" = 2.5, "Bachelors" = 4.5, "Graduate" = 7),
+    guide = guide_legend(title = "Parental Education")
+  ) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
+  scale_color_manual(values = colour_map) +
+  scale_x_continuous(labels = scales::label_number(big.mark = ",")) +
+  theme_minimal() +
+  labs(
+    title = "Figure 4: Is Education Spending Taking Away the Joy for Poor Families \nwith Children?",
+    subtitle = "The Trade-off: parents without a university degree are forced to sacrifice their own joy just to give their kids \na fighting chance at a better future.",
+    caption = "Note: The dashed line at $0 represents the city average. \nFamilies positioned to the left are spending less than the average on recreation.",
+    x = "Recreation Spending Gap (Below/Above Average $)",
+    y = "Education Cost as % of Wage",
+    color = "Income Group",
+    size = "Parental Education"
+  ) +
+ theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 11, color = "grey40", face = "italic", hjust = 0.5),
+    plot.title.position = "plot", 
+    plot.caption.position = "plot",
+    axis.title = element_text(size = 11, face = "bold"),
+    axis.text = element_text(size = 10),
+    legend.position = "right",
+    legend.title = element_text(size = 10, face = "bold"),
+    legend.text = element_text(size = 9)
+  )
+
+
+girafe(ggobj = p, width_svg = 10, height_svg = 6, 
+       options = list(
+         opts_hover(css = "fill-opacity:1;stroke:black;stroke-width:2;"),
+         opts_hover_inv(css = "opacity:0.05;"),
+         opts_toolbar(saveaspng = FALSE)
+       ))
+```
+
+#### **Education Costs and Leisure: How Financial Pressure Limits Recreation**
+
+To really show what this financial pressure does to a family's daily life, **Figure 4** maps out every single household in an interactive visualization. Each dot represents a family, color-coded by their income group. While income ordered from low to high, distinct colors are used here to create a sharper contrast between economic groups. The size of each dot represents the parents' education level. Larger dots indicate higher degrees, while tiny dots represent parents whose degrees are lower. The vertical direction shows the percentage of a paycheck spent on education, while the horizontal direction shows the recreation spending gap compared to the city average.
+
+Interacting with the different income groups instantly reveals two totally separate worlds. For low-income families, the pattern of the dots goes sharply downward. This downward pattern is driven heavily by parents who personally struggled in the job market without a university degree. Determined to provide their children a fighting chance, these parents pour every spare cent into schooling. Consequently, every extra dollar scraped together for education is a dollar taken directly from the family's joy. Meanwhile, for middle and high-income families, the pattern of dots goes upward. For them, wealth acts as a buffer, allowing the family to increase spending on both education and recreation simultaneously without making painful sacrifices.
+
+Beyond these patterns, the way the dots gather tells the deepest story of a divided city. The solid "vertical wall" of tiny dots trapped on the far-left edge shows that families with lower parental education are forced to squeeze every drop out of their leisure budget just to keep up. Tying this back to **Figure 3**, it proves that for those at the bottom, fighting for a better future means systematically stripping the joy out of everyday life. In sharp contrast, wealthy families scatter comfortably across the right side of the chart, affording a quality of life that remains far above the city average.
+
+#### **Conclusion and Actionable Insights**
+
+In essence, living on a low income means facing severely limited choices in the city of Engagement. To afford education, the one reliable ticket to a better future, these families are forced to strip their lives down to the bare minimum, sacrificing their interests and sometimes even basic needs. A parent's education level dictates a family's right to relax. If the city doesn't step in, this financial trap will lock vulnerable households into a permanent cycle of inequality.
+
+To address this, local leaders need to take targeted policies. First, the city needs to step up by offering direct tuition subsidies, turning free public libraries into accessible learning hubs, and setting up transparent donation channels so the wider community can easily chip in. Second, the city must balance its social resources by providing more free spaces and opportunities for low-income families. By investing heavily in high-quality public infrastructure such as parks and community centers, the city can ensure that recreation is a fundamental right. Regardless of how much they earn or what diploma they hold, every citizen deserves an equal right to enjoy the city. Ultimately, a city's true civic vitality thrives only when everyone has the chance to live happily and flourish.
+
+#### **Limitations and suggestions for future work**
+
+One limitation of this analysis is that the dataset represents a simulated city rather than real-world observations. While the patterns help illustrate how income differences may influence spending behavior, they may not fully reflect the complexity of real households. In addition, recreation spending can be affected by many factors that are not included in the dataset, such as personal preferences, cultural habits, family size, or access to public spaces and community services. Because of this, the relationships shown in the visualizations should be interpreted as patterns rather than direct causes. Future work could incorporate additional variables or real-world data to better understand how families balance education and leisure spending.
+
+While **Figure 1** highlights the theme of the "education squeeze" and clearly distinguishes between family types, food and shelter were grouped into a single "basic needs" category. However, this simplification masks the difficult daily choices low-income families must make. Future work should separate these categories to reveal whether families are compromising on food or accepting precarious living conditions (shelter) to fund their children's education.
+
+In **Figure 2**, the analysis of absolute education spending is limited by the lack of detailed spending categories. Although supplementary datasets like school.csv exist, the absence of participant_id identifiers prevents the mapping of specific schooling costs to individual families. Consequently, **Figure 2** did not distinguish between basic tuition and extra spending (such as extracurriculars or tutoring), which high-income families are more likely to afford. Future research must incorporate detailed spending breakdowns to definitively prove how the income gap translates into an education gap, ultimately fueling long-term urban inequality.
+
+**Figure 3** relies on a monetary "Recreation Gap" to represent a family's ability to enjoy the city. Treating "civic vitality" only as a financial metric is a significant drawback. Families may use free public facilities, parks, or community centers, so a smaller recreation budget does not always equate to complete isolation. To provide a more comprehensive assessment of a family's actual quality of life, beyond what they can purchase, future analyses should include time-use data or geographic access to free civic resources.
+
+In **Figure 4**, the dense clustering on the far-left edge naturally causes dots to overlap, hiding individual families. However, this dense 'wall' is not a design flaw. Instead, it highlights the sheer scale of the crisis, showing just how many low-income households are trapped in this extreme recreation deficit. Additionally, a conscious choice was made not to pack employment variables into these specific charts. Adding job titles or hourly wages here would create a messy chart and distract from the main story: the harsh trade-off between a child's education costs and a family's joy. To keep the focus sharp on these spending patterns, the career-pipeline analysis is left for future work, where flow diagrams could be used to map out the long-term journey from education to specific jobs.
+
+#### **AI Use Acknowledgement**
+
+In this assignment, AI tools were only used for grammatical correction, spelling checks, and minor sentence revisions to improve clarity, coherence, and readability in the written descriptions. AI tools were not used to generate ideas, determine the research question, design visualizations, perform data analysis, or generate R code. All data cleaning, analysis, visualization design, and interpretations were completed independently by our team.
+
+#### **References**
+
+Statistics Canada. (2025). *Sense of control and positive mental health outcomes among adults in Canada during the COVID-19 pandemic*. [cite_start]*Health Reports*, *36*(4). https://www150.statcan.gc.ca/n1/pub/82-003-x/2025004/article/00002-eng.htm 
+
+VAST Challenge. (2022). *VAST Challenge 2022 dataset descriptions*. [cite_start]Visual Analytics Science and Technology. https://q.utoronto.ca/courses/427522/pages/datasets
