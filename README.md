@@ -59,3 +59,6 @@ The project uses `ggiraph` to upgrade static `ggplot2` charts into web-based int
 ├── interactive_analysis_report.Rmd      # Core R script (data wrangling & visualization)
 ├── urban_inequality_report.html         # Interactive HTML report (with ggiraph hover effects)
 └── urban_inequality_report.pdf          # Static version of the analytical report
+## View Interactive Report
+
+[Click here to view the interactive HTML report](https://luchenserena.github.io/Interactive-Socioeconomic-Data-Visualization/urban_inequality_report.html)
